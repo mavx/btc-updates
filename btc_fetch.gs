@@ -110,7 +110,7 @@ function BTC_realtimedata() {
   var lastcol = historic_data.getLastColumn()
   
   // Query the BTC market data API to a cell
-  var BitX = UrlFetchApp.fetch("s://api.mybitx.com/api/1/ticker?pair=XBTMYR").getContentText();
+  var BitX = UrlFetchApp.fetch("https://api.mybitx.com/api/1/ticker?pair=XBTMYR").getContentText();
   var BitAv = UrlFetchApp.fetch("https://api.bitcoinaverage.com/ticker/USD").getContentText();
   var CoinDesk = UrlFetchApp.fetch("https://api.coindesk.com/v1/bpi/currentprice/MYR.json").getContentText();
   var Poloniex = UrlFetchApp.fetch("https://poloniex.com/public?command=returnTicker").getContentText();
