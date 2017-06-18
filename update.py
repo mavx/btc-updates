@@ -5,7 +5,7 @@ import psql
 def batch_call():
     endpoint = {
         'bitx': 'https://api.mybitx.com/api/1/ticker?pair=XBTMYR',
-        'bitav': 'https://api.bitcoinaverage.com/ticker/USD',
+        'bitav': 'https://apiv2.bitcoinaverage.com/ticker/USD',
         'coindesk': 'https://api.coindesk.com/v1/bpi/currentprice/USD.json',
         'poloniex': 'https://poloniex.com/public?command=returnTicker'
     }
