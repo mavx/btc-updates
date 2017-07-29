@@ -1,6 +1,9 @@
 import requests
+import logging
 import psql
+import os
 
+logging.basicConfig(filename='update_errors.log', level=logging.WARNING)
 ENDPOINT = {
     'bitx': 'https://api.mybitx.com/api/1/ticker?pair=XBTMYR',
     'bitav': 'https://apiv2.bitcoinaverage.com/indices/global/ticker/BTCUSD',
@@ -8,74 +11,98 @@ ENDPOINT = {
     'poloniex': 'https://poloniex.com/public?command=returnTicker'
 }
 
-def batch_call():
-    results = {}
-    for key in ENDPOINT:
-        try:
-            r = requests.get(ENDPOINT.get(key), timeout=200)
-            print('GET', r.url, r.status_code)
-            results[key] = r.json()
-        except Exception as e:
-            print(str(e))
-            pass
+# Crypto_updates channel
+SLACK_WEBHOOK = os.environ['SLACK_WEBHOOK']
 
-    return results
-
-
-def update_bitx(db, results):
+def ping(*msg):
+    data = {'text': ' '.join(str(x) for x in msg)}
     try:
+        return requests.post(SLACK_WEBHOOK, json=data)
+    except Exception as e:
+        logging.exception(e)
+        pass
+
+
+def get(endpoint):
+    r = requests.get(endpoint, timeout=200)
+    logging.info('GET', r.url, r.status_code)
+    if r.ok:
+        return r.json()
+
+
+def update_bitx(db):
+    try:
+        results = get(ENDPOINT['bitx'])
         db.execute(
             "INSERT INTO bitx VALUES ((NOW()), (%s), (%s))"
-            , [results.get('ask'), results.get('bid')]
+            , [results['ask'], results['bid']]
             , commit=True
         )
+        return True
     except Exception as e:
-        print(str(e))
+        logging.exception(e)
         db.rollback()
 
-def update_bitav(db, results):
+
+def update_bitav(db):
     try:
+        results = get(ENDPOINT['bitav'])
         db.execute(
             "INSERT INTO bitcoin_average VALUES ((NOW()), (%s), (%s))"
-            , [results.get('ask'), results.get('bid')]
+            , [results['ask'], results['bid']]
             , commit=True
         )
+        return True
     except Exception as e:
-        print(str(e))
+        logging.exception(e)
         db.rollback()
 
-def update_coindesk(db, results):
+
+def update_coindesk(db):
     try:
-        rate = results.get('bpi', {}).get('USD', {}).get('rate')
+        results = get(ENDPOINT['coindesk'])
+        rate = results.get('bpi', {}).get('USD', {})['rate']
         db.execute(
             "INSERT INTO coindesk VALUES ((NOW()), (%s))"
             , [float(rate.replace(',', ''))]
             , commit=True
         )
+        return True
     except Exception as e:
-        print(str(e))
+        logging.exception(e)
         db.rollback()
 
-def update_poloniex(db, results):
+
+def update_poloniex(db):
     try:
+        results = get(ENDPOINT['poloniex'])
         rate = results.get('USDT_BTC', {})
         db.execute(
             "INSERT INTO poloniex VALUES ((NOW()), (%s), (%s))"
-            , [rate.get('lowestAsk'), rate.get('highestBid')]
+            , [rate['lowestAsk'], rate['highestBid']]
             , commit=True
         )
+        return True
     except Exception as e:
-        print(str(e))
+        logging.exception(e)
         db.rollback()
-        
+
 
 def main():
     db = psql.Connection()
-    response = batch_call()
-    update_bitx(db, response.get('bitx', {}))
-    update_bitav(db, response.get('bitav', {}))
-    update_coindesk(db, response.get('coindesk', {}))
-    update_poloniex(db, response.get('poloniex', {}))
+    jobs = [
+        update_bitx
+        , update_bitav
+        , update_coindesk
+        , update_poloniex
+    ]
+
+    job_status = {func.__name__: func(db) for func in jobs}
+    print(job_status)
+
+    if not all(job_status.values()):
+        errors = [job for job in job_status if job_status[job] is not True]
+        ping('`ERRORS:`', str(errors))
     db.end()
 
 
