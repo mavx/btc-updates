@@ -92,7 +92,7 @@ def main():
     db = psql.Connection()
     jobs = [
         update_bitx
-        , update_bitav
+#         , update_bitav
         , update_coindesk
         , update_poloniex
     ]
